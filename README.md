@@ -23,14 +23,6 @@ uv python install
 uv sync
 ```
 
-3. Environment Variables: Create a `.env` file in the project root. Then add:
-
-```bash
-MELO_API_KEY="your_api_key_here"
-```
-
-You can obtain a Melo API key from [notif.immo](https://www.notif.immo/).
-
 ## Usage
 
 Start the server on port 8000:
@@ -109,10 +101,6 @@ The Melo API returns property data in the following structure:
 ### Extending the Server
 
 To add more filters or tools, you can extend the `_search_melo_properties` function or create new tools following the same pattern. The Melo API supports many more parameters than currently exposed - refer to the API documentation for the full list.
-
-### Environment Variables
-
-- `MELO_API_KEY`: Your Melo API key (required)
 
 ## License
 

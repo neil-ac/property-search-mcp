@@ -1,103 +1,119 @@
-# mcp-server-template-python
+# property-search-mcp
 
-A very simple Python template for building MCP servers using Streamable HTTP transport.
+A FastMCP-based MCP server for searching real estate properties in France using the Melo (notif.immo) API.
 
 ## Overview
-This template provides a foundation for creating MCP servers that can communicate with AI assistants and other MCP clients. It includes a simple HTTP server implementation with example tools, resources & prompts to help you get started building your own MCP integrations.
+This MCP server provides a comprehensive tool for searching real estate properties through the Melo API. It allows AI assistants and other MCP clients to search for apartments and houses for sale or rent with extensive filtering options including price, surface area, location, and more.
 
 ## Prerequisites
 - Install uv (https://docs.astral.sh/uv/getting-started/installation/)
 
 ## Installation
 
-1. Clone the repository:
+1. Clone the repository and navigate to the directory:
 
 ```bash
-git clone git@github.com:alpic-ai/mcp-server-template-python.git
-cd mcp-server-template-python
+cd property-search-mcp
 ```
 
 2. Install python version & dependencies:
 
 ```bash
 uv python install
-uv sync --locked
+uv sync
 ```
+
+3. Environment Variables: Create a `.env` file in the project root. Then add:
+
+```bash
+MELO_API_KEY="your_api_key_here"
+```
+
+You can obtain a Melo API key from [notif.immo](https://www.notif.immo/).
 
 ## Usage
 
-Start the server on port 3000:
+Start the server on port 8000:
 
 ```bash
 uv run main.py
 ```
 
-## Running the Inspector
+The server will be available at `http://127.0.0.1:8000/mcp` using Streamable HTTP transport.
 
-### Requirements
-- Node.js: ^22.7.5
+## Features
 
-### Quick Start (UI mode)
-To get up and running right away with the UI, just execute the following:
-```bash
-npx @modelcontextprotocol/inspector
-```
+### `search_properties` Tool
 
-The inspector server will start up and the UI will be accessible at http://localhost:6274.
+The server provides a comprehensive property search tool with the following parameters:
 
-You can test your server locally by selecting:
-- Transport Type: Streamable HTTP
-- URL: http://127.0.0.1:3000/mcp
+- **property_type**: Choose between "apartment" or "house"
+- **transaction_type**: Choose "sell" (purchase) or "rent" (rental)
+- **budget_min/budget_max**: Filter by price range in euros
+- **surface_min/surface_max**: Filter by surface area in square meters
+- **price_per_meter_min/price_per_meter_max**: Filter by price per square meter
+- **bedroom_min**: Minimum number of bedrooms
+- **zip_codes**: List of French zip codes to search in (e.g., ["75011", "23158"])
+- **order_by**: Sort results by "pricePerMeter", "price", or "updatedAt"
+- **items_per_page**: Number of results per page (1-10, default: 5)
+- **page**: Page number for pagination
+
+### Example Queries
+
+Through an AI assistant connected to this MCP server, you can ask:
+
+- "Find apartments for sale in Paris 11th arrondissement with at least 2 bedrooms under 500,000€"
+- "Show me houses for rent in Paris with a minimum of 80m² surface area"
+- "Search for properties in the 75018 zip code sorted by price per meter"
 
 ## Development
 
-### Adding New Tools
+### API Response Format
 
-To add a new tool, modify `main.py`:
+The Melo API returns property data in the following structure:
 
-```python
-@mcp.tool(
-    title="Your Tool Name",
-    description="Tool Description for the LLM",
-)
-async def new_tool(
-    tool_param1: str = Field(description="The description of the param1 for the LLM"), 
-    tool_param2: float = Field(description="The description of the param2 for the LLM") 
-)-> str:
-    """The new tool underlying method"""
-    result = await some_api_call(tool_param1, tool_param2)
-    return result
+```json
+{
+  "hydra:member": [
+    {
+      "@id": "/documents/properties/...",
+      "uuid": "...",
+      "propertyType": 0,
+      "transactionType": 1,
+      "bedroom": 2,
+      "room": 3,
+      "surface": 30,
+      "price": 950,
+      "pricePerMeter": 31.66,
+      "city": {
+        "name": "Paris 18e",
+        "zipcode": "75018",
+        "department": {...}
+      },
+      "locations": {
+        "lat": 48.8530933,
+        "lon": 2.2487626
+      },
+      "pictures": [...],
+      "adverts": [...],
+      ...
+    }
+  ],
+  "hydra:totalItems": 0,
+  "hydra:view": {
+    "hydra:next": "..."
+  }
+}
 ```
 
-### Adding New Resources
+### Extending the Server
 
-To add a new resource, modify `main.py`:
+To add more filters or tools, you can extend the `_search_melo_properties` function or create new tools following the same pattern. The Melo API supports many more parameters than currently exposed - refer to the API documentation for the full list.
 
-```python
-@mcp.resource(
-    uri="your-scheme://{param1}/{param2}",
-    description="Description of what this resource provides",
-    name="Your Resource Name",
-)
-def your_resource(param1: str, param2: str) -> str:
-    """The resource template implementation"""
-    # Your resource logic here
-    return f"Resource content for {param1} and {param2}"
-```
+### Environment Variables
 
-The URI template uses `{param_name}` syntax to define parameters that will be extracted from the resource URI and passed to your function.
+- `MELO_API_KEY`: Your Melo API key (required)
 
-### Adding New Prompts
+## License
 
-To add a new prompt , modify `main.py`:
-
-```python
-@mcp.prompt("")
-async def your_prompt(
-    prompt_param: str = Field(description="The description of the param for the user")
-) -> str:
-    """Generate a helpful prompt"""
-
-    return f"You are a friendly assistant, help the user and don't forget to {prompt_param}."
-
-```
+This project is licensed under the MIT License.

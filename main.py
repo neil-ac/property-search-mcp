@@ -4,11 +4,11 @@ Property Search MCP Server (using Melo API) - Real Estate Search API
 
 import json
 import logging
-import os
 from typing import Literal, Optional
 
 import httpx
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_headers
 from pydantic import Field
 
 from dotenv import load_dotenv
@@ -22,14 +22,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("melo-mcp")
 
-mcp = FastMCP("Real Estate Search", stateless_http=True)
-
 # API Configuration
 MELO_API_BASE_URL = "https://api.notif.immo"
-MELO_API_KEY = os.getenv("MELO_API_KEY", "")
+
+# No authentication on the MCP server - relies on pass-through
+mcp = FastMCP("Real Estate Search", stateless_http=True)
+
+logger.info("🔓 MCP Server initialized (pass-through authentication)")
 
 
 async def _search_melo_properties(
+    api_key: str,
     property_type: Optional[int] = None,
     transaction_type: Optional[int] = None,
     budget_min: Optional[int] = None,
@@ -45,7 +48,7 @@ async def _search_melo_properties(
     page: int = 1,
 ) -> dict:
     """
-    Internal function to call the Melo API.
+    Internal function to call the Melo API using the provided API key.
 
     Args:
         property_type: Property type (0=Apartment, 1=House, 2=Building, 3=Parking, 4=Office, 5=Land, 6=Shop)
@@ -109,7 +112,7 @@ async def _search_melo_properties(
 
     headers = {
         "Content-Type": "application/json",
-        "X-API-KEY": MELO_API_KEY,
+        "X-API-KEY": api_key,
     }
 
     # Log request details
@@ -121,22 +124,30 @@ async def _search_melo_properties(
         logger.info(f"  {key}: {value}")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        response_data = response.json()
+        try:
+            response = await client.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            response_data = response.json()
 
-        # Log response details
-        logger.info("-" * 80)
-        logger.info("✅ Melo API Response")
-        logger.info(f"Status Code: {response.status_code}")
-        logger.info(f"Total Items: {response_data.get('hydra:totalItems', 'N/A')}")
-        logger.info(
-            f"Properties Returned: {len(response_data.get('hydra:member', []))}"
-        )
-        logger.info(f"Response Preview: {json.dumps(response_data, indent=2)[:500]}...")
-        logger.info("=" * 80)
+            # Log response details
+            logger.info("-" * 80)
+            logger.info("✅ Melo API Response")
+            logger.info(f"Status Code: {response.status_code}")
+            logger.info(f"Total Items: {response_data.get('hydra:totalItems', 'N/A')}")
+            logger.info(
+                f"Properties Returned: {len(response_data.get('hydra:member', []))}"
+            )
+            logger.info(
+                f"Response Preview: {json.dumps(response_data, indent=2)[:500]}..."
+            )
+            logger.info("=" * 80)
 
-        return response_data
+            return response_data
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in [401, 403]:
+                logger.error("❌ Invalid Melo API key")
+                raise ValueError("Invalid Melo API key. Please check your credentials.")
+            raise
 
 
 @mcp.tool(
@@ -201,7 +212,7 @@ async def search_properties(
     ),
 ) -> dict:
     """
-    Search for real estate properties in France using the Melo API.
+    Search for real estate properties in France using the Melo API. Requires X-API-KEY header with a valid Melo API key.
 
     Returns a collection of properties matching the specified criteria, including
     detailed information about each property such as location, price, surface area,
@@ -213,11 +224,23 @@ async def search_properties(
     - Find houses for rent under 2000€:
       property_type="house", transaction_type="rent", budget_max=2000
     """
+
+    # Extract API key from request headers using get_http_headers()
+    headers = get_http_headers()
+    api_key = headers.get("x-api-key")
+
+    if not api_key:
+        logger.error("❌ Missing X-API-KEY header")
+        raise ValueError("Missing X-API-KEY header. Please provide your Melo API key.")
+
+    logger.info("🔑 Using API key from request headers")
+
     # Map user-friendly values to API values
     property_type_map = {"apartment": 0, "house": 1}
     transaction_type_map = {"sell": 0, "rent": 1}
 
     return await _search_melo_properties(
+        api_key=api_key,
         property_type=property_type_map[property_type],
         transaction_type=transaction_type_map[transaction_type],
         budget_min=budget_min,

@@ -8,7 +8,7 @@ from typing import Literal, Optional
 
 import httpx
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_headers
+from fastmcp.server.dependencies import get_http_headers, get_http_request
 from pydantic import Field
 
 from dotenv import load_dotenv
@@ -226,11 +226,38 @@ async def search_properties(
     """
 
     # Extract API key from request headers using get_http_headers()
+    # Method 1: Try to get from HTTP headers (pass-through auth)
     headers = get_http_headers()
-    api_key = headers.get("x-api-key")
+    logger.info(f"🔍 Received headers: {dict(headers)}")
+
+    # Method 2: Try to get from full HTTP request object (alternative approach)
+    try:
+        request = get_http_request()
+        logger.info(f"🔍 Request available: {request is not None}")
+        logger.info(f"🔍 Request method: {request.method if request else 'N/A'}")
+        logger.info(f"🔍 Request URL: {request.url if request else 'N/A'}")
+
+        # Check if headers are in the full request
+        if request:
+            request_headers = dict(request.headers)
+            logger.info(f"🔍 Request headers: {request_headers}")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not get full request: {e}")
+        request = None
+
+    # Try multiple case variations for headers (HTTP headers are case-insensitive)
+    # First try from headers dict, then from request object
+    api_key = (
+        headers.get("x-api-key")
+        or headers.get("X-API-KEY")
+        or headers.get("X-Api-Key")
+        or (request.headers.get("x-api-key") if request else None)
+        or (request.headers.get("X-API-KEY") if request else None)
+    )
 
     if not api_key:
         logger.error("❌ Missing X-API-KEY header")
+        logger.error(f"Available headers: {list(headers.keys())}")
         raise ValueError("Missing X-API-KEY header. Please provide your Melo API key.")
 
     logger.info("🔑 Using API key from request headers")

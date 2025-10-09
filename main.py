@@ -11,10 +11,6 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from pydantic import Field
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
